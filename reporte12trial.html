@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <!--
+    Reportes de Grupos de Amistad · PWA de un solo archivo
+    Novedades (v13):
+      - Límite de miembros en demo: SOLO se permiten 3 miembros activos. Al intentar agregar el 4º, se muestra aviso para activar Pro.
+      - El límite aplica aunque la demo siga activa (dentro de 5 días y con envíos disponibles).
+      - Mantiene el bloqueo total tras 5 envíos o 5 días: no compartir, no copiar texto, no agregar miembros, no editar asistencia.
+      - Contador unificado y robusto (reporte: texto o imagen, y delegaciones), con rollback en fallos y anti doble-clic.
+      - Botón de contacto Pro por WhatsApp sin mostrar el número (abre wa.me).
+  -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0f6f7b" />
+  <title>Reportes GA · PWA</title>
+
+  <style>
+    :root{
+      --bg-0: #071015;
+      --bg-1: #0a1219;
+      --bg-2: #0d1821;
+      --bg-3: #10202a;
+      --card-top: #0f1f29;
+      --card-bottom: #0b141a;
+      --card-2-top: #122532;
+      --card-2-bottom: #0b151c;
+      --outline-1: #203545;
+      --outline-2: #1b2b39;
+      --primary: #0f6f7b;
+      --primary-700: #0b5660;
+      --accent: #ffd166;
+      --text: #eaf3f9;
+      --muted: #9fb0c0;
+      --success: #34d399;
+      --danger: #ef4444;
+      --warning: #fbbf24;
+      --radius: 14px;
+      --radius-sm: 12px;
+      --shadow-1: 0 8px 30px rgba(0,0,0,.40);
+      --shadow-2: 0 14px 40px rgba(0,0,0,.50);
+      --focus: 0 0 0 3px rgba(15,111,123,.35), 0 0 0 6px rgba(15,111,123,.15);
+      --font-sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      --gap: 14px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body{
+      margin:0; font-family: var(--font-sans); color: var(--text);
+      background:
+        radial-gradient(1200px 800px at 10% -20%, #0b1c26 0%, var(--bg-1) 60%) fixed,
+        linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 60%, var(--bg-0) 100%);
+      background-attachment: fixed; line-height: 1.35;
+    }
+    img{ max-width: 100%; display:block; }
+    a{ color: var(--accent); text-decoration: none; }
+    a:hover{ text-decoration: underline; }
+    button, input, select, textarea{ font: inherit; color: inherit; background: transparent; border: 0; outline: none; }
+    button{ cursor: pointer; }
+    .btn:disabled{ opacity:.6; cursor:not-allowed; }
+    :focus-visible { box-shadow: var(--focus); border-radius: 10px; outline: none; }
+
+    header{
+      position: sticky; top: 0; z-index: 50;
+      background:
+        linear-gradient(180deg, rgba(7,16,21,.95), rgba(10,18,25,.85)),
+        linear-gradient(180deg, var(--bg-2), var(--bg-1));
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--outline-2);
+    }
+    .header-inner{
+      max-width: 1100px; margin: 0 auto; padding: 14px;
+      display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px;
+    }
+    .brand{ display:flex; align-items:center; gap:10px; }
+    .logo{
+      width:36px; height:36px; border-radius: 10px;
+      background: conic-gradient(from 210deg at 50% 50%, #23a6b7, var(--primary) 45%, #0a5660 70%, #23a6b7);
+      box-shadow: inset 0 0 20px rgba(255,255,255,.08), 0 10px 20px rgba(14,124,134,.25);
+      position: relative; overflow: hidden;
+    }
+    .logo::after{
+      content:""; position:absolute; inset:3px; border-radius: 8px;
+      background: radial-gradient(100px 80px at 30% 20%, rgba(255,255,255,.25), transparent 50%),
+                  linear-gradient(145deg, rgba(255,255,255,.1), transparent 40%);
+    }
+    .brand h1{ margin:0; font-size: 1rem; letter-spacing:.3px; color: #eaf3f9; }
+    .header-actions{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+    .badge{
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #14212b, #0d161c) padding-box;
+      color:#dbe9f5; border:1px solid #274156; padding:6px 10px; border-radius:999px; font-size:.85rem;
+    }
+
+    .btn{
+      --bg: var(--primary); --bg-h: var(--primary-700); --text: #eaf6f8;
+      background: linear-gradient(180deg, var(--bg), var(--bg-h));
+      color: var(--text); padding: 10px 14px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.06);
+      box-shadow: 0 6px 16px rgba(14,124,134,.3), inset 0 1px 0 rgba(255,255,255,.1);
+      transition: transform .08s ease, filter .2s ease, background .2s ease;
+      display:inline-flex; align-items:center; gap:8px;
+    }
+    .btn:hover{ filter: brightness(1.06); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.secondary{ --bg: #172632; --bg-h:#111e28; --text:#d7e1ea; border-color: #223648; box-shadow: 0 6px 16px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06); }
+    .btn.ghost{ background: linear-gradient(180deg, rgba(23,38,50,.35), rgba(17,30,40,.25)); border: 1px solid #223648; box-shadow: none; color:#d7e1ea; }
+    .btn.warning{ --bg: #f59e0b; --bg-h: #d97706; }
+    .btn.success{ --bg: #22c55e; --bg-h: #16a34a; }
+    .btn.danger{ --bg: #ef4444; --bg-h: #dc2626; }
+
+    main{
+      max-width: 1100px; margin: 14px auto; padding: 0 14px 90px;
+      display:grid; gap: var(--gap);
+    }
+
+    section, aside, .card{
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, var(--card-top), var(--card-bottom)) padding-box;
+      border: 1px solid transparent; border-radius: var(--radius); box-shadow: var(--shadow-1); padding: 14px;
+    }
+    .card.alt{
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #122532, #0b151c) padding-box;
+    }
+
+    section h2, aside h2{
+      font-size: 1.28rem;
+      margin: 0 0 10px; color: #f2f7fb; letter-spacing: .2px; line-height: 1.2;
+      text-shadow: 0 1px 0 rgba(0,0,0,.35);
+    }
+    @media (min-width: 768px){ section h2, aside h2{ font-size: 1.34rem; } }
+    .muted { color: var(--muted); font-size: .95rem; }
+
+    .group-card{ display:grid; gap: 10px; }
+    .group-row{ display:grid; grid-template-columns: 1fr auto; align-items:center; gap:10px; }
+    .inline{ display:flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+    .tag{
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0e1b23, #0a141a) padding-box;
+      color:#dbe9f5; border:1px solid #274156;
+      padding: 6px 10px; border-radius: 999px; font-size: .9rem;
+    }
+
+    .week-bar{ display:grid; gap:8px; grid-template-columns: 1fr; align-items:center;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0d1b24, #0a1218) padding-box;
+      border:1px solid #243a4c; border-radius: var(--radius-sm); padding: 12px; }
+    .week-bar .row{ display:flex; gap:8px; align-items:center; flex-wrap: wrap; }
+
+    input[type="date"], input[type="text"], input[type="number"], textarea{
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0b1820, #0a1419) padding-box;
+      color: #d8e6f3; border: 1px solid #274156;
+      border-radius: 12px; padding: 10px 12px; width:100%;
+      transition: border-color .15s ease, box-shadow .15s ease, filter .2s ease;
+    }
+    input[type="date"]:focus, input[type="text"]:focus, input[type="number"]:focus, textarea:focus{ border-color: #2f5166; box-shadow: var(--focus); }
+    textarea{ resize: vertical; min-height: 110px; }
+
+    select.select{
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0b1820, #0a1419) padding-box;
+      color: #d8e6f3; border: 1px solid #274156;
+      border-radius: 12px; padding: 10px 12px; width:100%;
+      transition: border-color .15s ease, box-shadow .15s ease, filter .2s ease;
+      appearance: none;
+      background-image: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)), url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="%23cfe3f5" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>');
+      background-repeat: no-repeat, no-repeat;
+      background-position: right 10px center, right 10px center;
+      background-size: 18px, 18px;
+      padding-right: 38px;
+    }
+    select.select:focus{ border-color: #2f5166; box-shadow: var(--focus); }
+
+    .members{ display:grid; gap:8px; }
+    .member-item{
+      display:grid; grid-template-columns: 1fr auto; align-items:center; gap:8px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0e1c25, #0a141a) padding-box;
+      border: 1px solid #274156; border-radius: var(--radius-sm); padding: 8px 10px;
+    }
+    .member-name{ font-weight: 600; color: #e8f2fb; letter-spacing:.2px; }
+    .presence-toggle{ display:flex; align-items:center; gap:6px; }
+    .toggle{
+      position: relative; width: 60px; height: 34px; border-radius: 999px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #172632, #111e28) padding-box;
+      border:1px solid #2a455a;
+    }
+    .toggle[data-pressed="true"]{
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #145a32, #0e4225) padding-box;
+      border-color: #2d7c52;
+    }
+    .toggle[data-pressed="true"] .knob{ transform: translateX(26px); background:#34d399; }
+    .toggle[data-pressed="false"] .knob{ transform: translateX(0); background:#ef4444; }
+    .knob{
+      position:absolute; top:3px; left:3px; width:28px; height:28px; border-radius: 50%;
+      transition: transform .2s ease, background .2s ease;
+      box-shadow: 0 4px 10px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    .status-label{
+      min-width:74px; text-align:center; font-size:.9rem; padding:6px 8px; border-radius: 10px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0e1b23, #0a141a) padding-box;
+      border:1px solid #274156; color:#cfe3f5;
+    }
+
+    .grid-2{ display:grid; gap: var(--gap); }
+    .chips{ display:flex; gap:6px; flex-wrap: wrap; }
+    .chip{
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0e1b23, #0a141a) padding-box;
+      color:#daecfb; border:1px solid #274156;
+      padding:6px 10px; border-radius: 999px; display:flex; gap:6px; align-items:center;
+    }
+    .chip button{ color:#ffc9c9; }
+
+    .photos{ display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; }
+    .photo{
+      position:relative; border-radius: 14px; overflow:hidden; border:1px solid #274156;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0e1c25, #0b141a) padding-box;
+      box-shadow: var(--shadow-1);
+    }
+    .photo img{ width:100%; height:160px; object-fit: cover; }
+    .photo .meta{
+      position:absolute; bottom:0; left:0; right:0; padding:6px 8px;
+      background: linear-gradient(180deg, rgba(0,0,0,.0), rgba(0,0,0,.55) 55%, rgba(0,0,0,.7));
+      color:#f3f8fc; font-size:.85rem; display:flex; justify-content:space-between; align-items:center;
+    }
+
+    .summary{ display:grid; gap:10px; }
+    .kpis{ display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; }
+    .kpi{
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0f1f29, #0b141a) padding-box;
+      border:1px solid #254257; border-radius: 12px;
+      padding:10px; display:grid; gap:4px; box-shadow: var(--shadow-1);
+    }
+    .kpi h3{ margin:0; font-size:1rem; color: #cfe3f5; font-weight:700; text-shadow: 0 1px 0 rgba(0,0,0,.35); }
+    .kpi .val{ font-size: 1.28rem; font-weight: 800; }
+
+    .progress{
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0b1820, #0a141a) padding-box;
+      border:1px solid #274156; border-radius: 999px; overflow:hidden; height: 12px;
+    }
+    .progress > .bar{ height: 100%; background: linear-gradient(90deg, #22c55e, #10b981); width: 0%; }
+
+    footer{
+      position: fixed; bottom:0; left:0; right:0; z-index:60;
+      background:
+        linear-gradient(180deg, rgba(7,16,21,0), rgba(7,16,21,.88) 35%, rgba(7,16,21,.96));
+      backdrop-filter: blur(10px);
+      border-top: 1px solid var(--outline-2);
+    }
+    .footer-inner{ max-width:1100px; margin: 0 auto; padding: 10px 14px; display:flex; gap:8px; flex-wrap: wrap; }
+    .footer-inner .btn{ flex:1 1 auto; justify-content: center; }
+
+    dialog{
+      width:min(720px, 92vw);
+      border: 1px solid #274156; border-radius: 16px; padding:0;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0e1c25, #0b141a) padding-box;
+      color: var(--text); box-shadow: var(--shadow-2);
+    }
+    dialog::backdrop{ backdrop-filter: blur(3px); background: rgba(0,0,0,.45); }
+    .modal-header{ display:flex; align-items:center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #274156; }
+    .modal-body{ padding: 12px 14px; display:grid; gap: 12px; }
+    .modal-actions{ display:flex; gap:8px; justify-content:flex-end; padding: 12px 14px; border-top:1px solid #274156; }
+
+    .share-options{
+      display:grid; gap: 10px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0e1b23, #0a141a) padding-box;
+      border:1px solid #274156; border-radius: 12px; padding: 10px;
+    }
+    .share-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .switch{ position: relative; width: 54px; height: 30px; border-radius: 999px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #172632, #111e28) padding-box;
+      border:1px solid #2a455a; }
+    .switch input{ position:absolute; inset:0; opacity:0; }
+    .switch .dot{
+      position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%;
+      background:#ef4444; transition: transform .2s ease, background .2s ease;
+      box-shadow: 0 4px 10px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    .switch input:checked + .dot{ transform: translateX(24px); background:#34d399; }
+
+    .thumbs{ display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; }
+    .thumb{
+      border:1px solid #274156; border-radius: 12px; overflow: hidden; position: relative;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0e1c25, #0b141a) padding-box;
+    }
+    .thumb img{ width:100%; height:110px; object-fit: cover; display:block; }
+    .thumb .select-row{ display:flex; align-items:center; justify-content: space-between; gap:8px; padding:6px 8px; font-size:.85rem; background: rgba(0,0,0,.28); }
+
+    .preview{ display:grid; gap:6px; }
+    .preview textarea{
+      width:100%; min-height: 160px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0b1820, #0a141a) padding-box;
+      color:#d7e8f7; border:1px solid #274156; border-radius: 12px; padding:10px; white-space: pre-wrap;
+    }
+
+    .toast{
+      position: fixed; right: 12px; bottom: 86px; z-index: 80;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0e1b23, #0a141a) padding-box;
+      border:1px solid #274156; padding: 10px 12px; border-radius: 10px; box-shadow: var(--shadow-1);
+      display:none;
+    }
+    .toast.show{ display:block; animation: fade .2s ease; }
+    @keyframes fade{ from{ opacity:.6; transform: translateY(6px);} to{ opacity:1; transform: translateY(0);} }
+
+    @media (min-width: 768px){
+      main{
+        grid-template-columns: 1.5fr 1fr;
+        grid-template-areas:
+          "grupo resumen"
+          "fecha resumen"
+          "asistencia resumen"
+          "tema resumen"
+          "testimonios resumen"
+          "fotos resumen"
+          "delegaciones resumen";
+      }
+      #sec-grupo{ grid-area: grupo; }
+      #sec-fecha{ grid-area: fecha; }
+      #sec-asistencia{ grid-area: asistencia; }
+      #sec-tema{ grid-area: tema; }
+      #sec-testimonios{ grid-area: testimonios; }
+      #sec-fotos{ grid-area: fotos; }
+      #sec-delegaciones{ grid-area: delegaciones; }
+      aside.summary{ grid-area: resumen; position: sticky; top: 70px; align-self: start; }
+      .photos{ grid-template-columns: repeat(3, 1fr); }
+      .kpis{ grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0; }
+    .danger-text{ color:#ffc1c1; }
+
+    .roles{ display:grid; gap:8px; }
+    .role-row{
+      display:grid; grid-template-columns: 1.3fr 1.7fr; gap:10px; align-items:center;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0e1c25, #0b141a) padding-box;
+      border: 1px solid #274156; border-radius: 12px; padding: 8px 10px;
+    }
+    .role-row .label{ display:flex; align-items:center; gap:8px; color:#e8f2fb; font-weight:600; }
+    .role-row .label .emoji{ font-size:1.1rem; }
+
+    /* Tarjeta de contacto WhatsApp (sin mostrar número) */
+    .contact-card{
+      display:grid; gap:6px; padding:10px; border-radius:12px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)) border-box,
+        linear-gradient(180deg, #0e1b23, #0a141a) padding-box;
+      border:1px solid #274156;
+    }
+    .contact-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .cta-wa{
+      --bg:#25D366; --bg-h:#1fb358;
+      background: linear-gradient(180deg, var(--bg), var(--bg-h));
+      color:#082b16; border:1px solid rgba(0,0,0,.08); padding:8px 12px; border-radius:10px; font-weight:700; text-decoration:none;
+    }
+  </style>
+</head>
+<body>
+  <header role="banner" aria-label="Barra superior">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <h1>Reportes de Grupo de Amistad</h1>
+      </div>
+      <div class="header-actions" role="group" aria-label="Acciones principales">
+        <span id="badgeLicense" class="badge" aria-live="polite">🔒 Demo</span>
+        <button id="btnActivate" class="btn warning" type="button" aria-label="Activar versión Pro">🔓 Activar Pro</button>
+        <button id="btnInstall" class="btn" type="button" aria-label="Instalar aplicación">📲 Instalar</button>
+        <button id="btnBackup" class="btn secondary" type="button" aria-label="Respaldar datos">💾 Respaldo</button>
+        <button id="btnRestore" class="btn ghost" type="button" aria-label="Restaurar datos">📁 Restaurar</button>
+      </div>
+    </div>
+  </header>
+
+  <main role="main">
+    <section id="sec-grupo" class="group-card" aria-labelledby="titulo-grupo">
+      <h2 id="titulo-grupo">Información del Grupo</h2>
+      <div class="group-row">
+        <div class="inline" aria-live="polite" aria-atomic="true">
+          <span class="tag" title="Nombre del grupo">Grupo: <strong id="groupNameView">—</strong></span>
+          <span class="tag" title="Nombre del líder">Líder: <strong id="leaderNameView">—</strong></span>
+        </div>
+        <div class="inline">
+          <button id="btnEditGroup" class="btn" type="button" aria-haspopup="dialog" aria-controls="modalGrupo">✏️ Editar</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-fecha" aria-labelledby="titulo-fecha">
+      <h2 id="titulo-fecha">Reunión</h2>
+      <div class="week-bar">
+        <div class="row">
+          <label for="meetingDate"><strong>Fecha</strong></label>
+          <input id="meetingDate" type="date" aria-describedby="fecha-hint" />
+        </div>
+        <p id="fecha-hint" class="muted">Selecciona la fecha de la reunión. Los datos se guardan por fecha.</p>
+        <div class="row">
+          <button id="btnPrevDay" class="btn secondary" type="button" aria-label="Día anterior">⟵ Anterior</button>
+          <button id="btnToday" class="btn ghost" type="button" aria-label="Ir a hoy">📅 Hoy</button>
+          <button id="btnNextDay" class="btn secondary" type="button" aria-label="Día siguiente">Siguiente ⟶</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-asistencia" aria-labelledby="titulo-asistencia">
+      <h2 id="titulo-asistencia">Asistencia</h2>
+      <div class="add-row" role="group" aria-label="Agregar persona">
+        <input id="newMemberInput" type="text" placeholder="Nombre de la persona" aria-label="Nombre de la persona nueva" />
+        <button id="btnAddMember" class="btn success" type="button">➕ Agregar</button>
+      </div>
+      <div class="members" id="membersList" role="list" aria-label="Lista de personas"></div>
+    </section>
+
+    <section id="sec-tema" class="grid-2" aria-labelledby="titulo-tema">
+      <h2 id="titulo-tema" class="sr-only">Tema & Ofrenda</h2>
+      <article class="card alt" aria-labelledby="titulo-tema-semana">
+        <h2 id="titulo-tema-semana">Tema de la semana</h2>
+        <input id="weeklyTopic" type="text" placeholder="Escribe el tema o tópico de la semana" aria-label="Tema de la semana" />
+      </article>
+      <article class="card alt" aria-labelledby="titulo-ofrenda">
+        <h2 id="titulo-ofrenda">Ofrenda</h2>
+        <div class="inline"><span class="tag">Moneda: <strong>EUR</strong></span></div>
+        <input id="offering" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" aria-label="Monto de la ofrenda en euros" />
+      </article>
+    </section>
+
+    <section id="sec-testimonios" class="grid-2" aria-labelledby="titulo-testimonios-visitas">
+      <h2 id="titulo-testimonios-visitas" class="sr-only">Testimonios y Visitas</h2>
+      <article class="card" aria-labelledby="titulo-testimonios">
+        <h2 id="titulo-testimonios">Testimonios</h2>
+        <div class="add-row">
+          <input id="newTestimonyInput" type="text" placeholder="Escribe un testimonio y presiona Agregar" aria-label="Nuevo testimonio" />
+          <button id="btnAddTestimony" class="btn success" type="button">➕ Agregar</button>
+        </div>
+        <div class="chips" id="testimoniesList" role="list" aria-label="Lista de testimonios"></div>
+      </article>
+      <article class="card" aria-labelledby="titulo-visitas">
+        <h2 id="titulo-visitas">Nuevas visitas</h2>
+        <div class="add-row">
+          <input id="newVisitorInput" type="text" placeholder="Nombre de la visita" aria-label="Nombre de la nueva visita" />
+          <button id="btnAddVisitor" class="btn success" type="button">➕ Agregar</button>
+        </div>
+        <div class="chips" id="visitorsList" role="list" aria-label="Lista de nuevas visitas"></div>
+      </article>
+    </section>
+
+    <section id="sec-fotos" aria-labelledby="titulo-fotos">
+      <h2 id="titulo-fotos">Fotos</h2>
+      <div class="add-row">
+        <input id="photoCaption" type="text" placeholder="Descripción (opcional)" aria-label="Descripción de la foto" />
+        <label for="photoInputCamera" class="btn secondary" role="button" aria-label="Tomar foto con cámara">📷 Tomar</label>
+        <input id="photoInputCamera" type="file" accept="image/*" capture="environment" class="sr-only" />
+        <label for="photoInputGallery" class="btn ghost" role="button" aria-label="Subir foto desde la galería">🖼️ Galería</label>
+        <input id="photoInputGallery" type="file" accept="image/*" multiple class="sr-only" />
+      </div>
+      <div class="photos" id="photosGrid" aria-live="polite" aria-label="Galería de fotos"></div>
+    </section>
+
+    <section id="sec-delegaciones" aria-labelledby="titulo-delegaciones">
+      <h2 id="titulo-delegaciones">Delegaciones para la próxima reunión</h2>
+      <p class="muted" id="delegationsHint">Asigna quién dirigirá cada parte. Por defecto, <strong>La lección</strong> la da el líder actual, pero puedes cambiarlo.</p>
+      <div class="roles" id="delegationsList"></div>
+      <div class="inline" style="margin-top:10px; gap:8px; flex-wrap:wrap;">
+        <button id="btnSuggestDelegations" class="btn secondary" type="button" aria-label="Sugerir delegaciones al azar" title="Sugerir automáticamente">🎲 Sugerir delegaciones</button>
+        <span style="flex:1"></span>
+        <button id="btnShareDelegationsWA" class="btn success" type="button" aria-label="Compartir delegaciones por WhatsApp" title="Enviar delegaciones por WhatsApp">🟢 Compartir delegaciones</button>
+      </div>
+    </section>
+
+    <aside class="summary" aria-labelledby="titulo-resumen">
+      <h2 id="titulo-resumen">Resumen de la reunión</h2>
+      <div class="kpis" role="group" aria-label="Indicadores clave">
+        <div class="kpi"><h3>Asistentes</h3><div class="val" id="kpiPresent">0</div><div class="muted">Presentes</div></div>
+        <div class="kpi"><h3>Ausentes</h3><div class="val" id="kpiAbsent">0</div><div class="muted">Miembros no presentes</div></div>
+        <div class="kpi"><h3>Ofrenda</h3><div class="val" id="kpiOffering">€0,00</div><div class="muted">Total del día</div></div>
+        <div class="kpi"><h3>Visitas</h3><div class="val" id="kpiVisitors">0</div><div class="muted">Nuevos invitados</div></div>
+      </div>
+      <div>
+        <div class="inline" style="justify-content:space-between; margin-bottom:6px;">
+          <span class="muted">Asistencia (%)</span><strong id="pctLabel">0%</strong>
+        </div>
+        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Porcentaje de asistencia">
+          <div class="bar" id="pctBar" style="width: 0%;"></div>
+        </div>
+      </div>
+      <div class="card alt" aria-live="polite" aria-atomic="true">
+        <h2 class="sr-only">Resumen textual</h2>
+        <p class="muted" id="summaryText">No hay datos de la reunión aún.</p>
+      </div>
+    </aside>
+  </main>
+
+  <footer role="contentinfo">
+    <div class="footer-inner">
+      <button id="btnShare" class="btn" type="button" aria-label="Compartir con otras apps" title="Compartir reporte">📤 Compartir</button>
+      <button id="btnShareWA" class="btn success" type="button" aria-label="Compartir por WhatsApp" title="Compartir por WhatsApp">🟢 WhatsApp</button>
+      <button id="btnClearDay" class="btn warning" type="button" aria-label="Limpiar datos del día" title="Limpiar datos de la fecha actual">🧹 Limpiar día</button>
+    </div>
+  </footer>
+
+  <!-- Modal edición -->
+  <dialog id="modalGrupo" role="dialog" aria-labelledby="modalGrupoTitle" aria-modal="true">
+    <div class="modal-header">
+      <h3 id="modalGrupoTitle" style="margin:0;">Editar información del grupo</h3>
+      <button class="btn ghost" type="button" data-close>✖</button>
+    </div>
+    <div class="modal-body">
+      <label for="inpGroupName">Nombre del grupo</label>
+      <input id="inpGroupName" type="text" placeholder="Ej. GA Jóvenes Norte" />
+      <label for="inpLeaderName">Nombre del líder</label>
+      <input id="inpLeaderName" type="text" placeholder="Ej. María Pérez" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn secondary" type="button" data-close>Cancelar</button>
+      <button id="btnSaveGroup" class="btn" type="button">💾 Guardar</button>
+    </div>
+  </dialog>
+
+  <!-- Modal compartir (reporte general) -->
+  <dialog id="modalShare" role="dialog" aria-labelledby="modalShareTitle" aria-modal="true">
+    <div class="modal-header">
+      <h3 id="modalShareTitle" style="margin:0;">Compartir reporte</h3>
+      <button class="btn ghost" type="button" data-close>✖</button>
+    </div>
+    <div class="modal-body">
+      <div class="share-options" aria-labelledby="shareOptionsTitle">
+        <div class="share-row" style="justify-content:space-between; width:100%;">
+          <strong id="shareOptionsTitle">Opciones</strong>
+          <span id="trialCounter" class="muted"></span>
+        </div>
+        <div class="share-row">
+          <label class="inline" for="chkIncludePhoto" style="gap:10px;">
+            <span class="switch" aria-hidden="true">
+              <input id="chkIncludePhoto" type="checkbox" />
+              <span class="dot"></span>
+            </span>
+            <span>Incluir foto como imagen-resumen (foto + informe en la misma imagen). <em id="watermarkNote" class="muted"></em></span>
+          </label>
+        </div>
+        <div id="photoPicker" class="thumbs" aria-label="Seleccionar foto a adjuntar"></div>
+      </div>
+
+      <div class="preview">
+        <label for="txtPreview"><strong>Vista previa del mensaje</strong></label>
+        <textarea id="txtPreview" readonly aria-label="Vista previa del mensaje"></textarea>
+        <p class="muted">Si WhatsApp ignora el texto con archivo, la imagen-resumen ya incluye todo el informe.</p>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn secondary" type="button" id="btnCopyMsg" title="Copiar solo texto (bloqueado al finalizar la demo)">📋 Copiar texto</button>
+      <span style="flex:1"></span>
+      <button class="btn" type="button" id="btnShareGeneric" title="Compartir con otras apps">📤 Otras apps</button>
+      <button class="btn success" type="button" id="btnShareWhatsApp" title="Compartir por WhatsApp">🟢 WhatsApp</button>
+    </div>
+  </dialog>
+
+  <!-- Modal AYUDA INSTALAR (fallback) -->
+  <dialog id="modalInstallHelp" role="dialog" aria-labelledby="installHelpTitle" aria-modal="true">
+    <div class="modal-header">
+      <h3 id="installHelpTitle" style="margin:0;">Instalar esta aplicación</h3>
+      <button class="btn ghost" type="button" data-close>✖</button>
+    </div>
+    <div class="modal-body" id="installHelpBody"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" type="button" data-close>Entendido</button>
+    </div>
+  </dialog>
+
+  <!-- Modal ACTIVACIÓN PRO -->
+  <dialog id="modalActivate" role="dialog" aria-labelledby="activateTitle" aria-modal="true">
+    <div class="modal-header">
+      <h3 id="activateTitle" style="margin:0;">Activar versión completa</h3>
+      <button class="btn ghost" type="button" data-close>✖</button>
+    </div>
+    <div class="modal-body">
+      <p class="muted">Pega aquí tu código de activación (enviado por WhatsApp). Esto habilita todas las funciones y quita la marca de agua.</p>
+      <label for="inpActivation">Código de activación</label>
+      <input id="inpActivation" type="text" placeholder="Pega aquí tu código (WhatsApp)" />
+      <div id="activationStatus" class="muted"></div>
+
+      <!-- Contacto directo por WhatsApp (sin mostrar número) -->
+      <div class="contact-card" aria-label="Contacto para adquirir Pro">
+        <div class="contact-row">
+          <span>¿Aún no tienes tu código?</span>
+          <a id="waContactLink" class="cta-wa" href="https://wa.me/34613409953?text=Hola%2C%20quisiera%20adquirir%20la%20versi%C3%B3n%20Pro%20de%20GA%20Reportes.%20Mi%20nombre%20es%3A%20" target="_blank" rel="noopener" aria-label="Contactar por WhatsApp">🟢 Contactar por WhatsApp</a>
+        </div>
+        <small class="muted">Atención directa. Te enviarán un código válido para activar tu versión Pro.</small>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn secondary" type="button" data-close>Cancelar</button>
+      <button id="btnApplyActivation" class="btn success" type="button">✅ Activar</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true">Guardado</div>
+
+  <script>
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+    const fmtCurrency = (n) => new Intl.NumberFormat('es-ES', { style:'currency', currency:'EUR' }).format(Number(n||0));
+    const todayISO = () => new Date().toISOString().slice(0,10);
+    const addDaysISO = (iso, days) => { const d = new Date(iso); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); };
+    const showToast = (msg="Guardado") => { const el = $("#toast"); el.textContent = msg; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 1800); };
+    const escapeHtml = (s) => String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+    // Límite de miembros en DEMO
+    const DEMO_MEMBER_LIMIT = 3;
+
+    // Códigos específicos válidos para activación
+    const ACTIVATION_WHITELIST = new Set([
+      "GA-PRO-X2819",
+      "GA-PRO-7XQ9M2B",
+      "GA-PRO-X238412",
+    ]);
+
+    const STORAGE_KEY = "synthweaver-ga-app-state-v1";
+    const defaultState = () => ({
+      version: 13,
+      group: { name: "Grupo de Amistad", leader: "Nombre del Líder" },
+      members: [],
+      photos: [],
+      weeks: {},
+      currentDate: todayISO(),
+      licensing: {
+        isPro: false,
+        firstUseISO: todayISO(),
+        trialDays: 5,
+        shareLimit: 5,
+        sharesUsed: 0,
+        // Back-compat:
+        exportLimit: 5,
+        exportsUsed: 0,
+        activationCode: ""
+      }
+    });
+    const state = loadState();
+    function loadState(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return defaultState();
+        const obj = JSON.parse(raw);
+        if(!obj.weeks) obj.weeks = {};
+        if(!obj.photos) obj.photos = [];
+        if(!obj.group) obj.group = { name: "Grupo de Amistad", leader: "Nombre del Líder" };
+        if(!obj.currentDate) obj.currentDate = todayISO();
+        if(!obj.members) obj.members = [];
+        if(!obj.licensing){
+          obj.licensing = defaultState().licensing;
+        }else{
+          if(typeof obj.licensing.sharesUsed !== "number"){
+            obj.licensing.sharesUsed = Number(obj.licensing.exportsUsed || 0);
+          }
+          if(typeof obj.licensing.shareLimit !== "number"){
+            obj.licensing.shareLimit = Number(obj.licensing.exportLimit || 5);
+          }
+        }
+        obj.version = 13;
+        return obj;
+      }catch(e){
+        console.warn("Error cargando estado, usando por defecto:", e);
+        return defaultState();
+      }
+    }
+    const saveState = debounce(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      refreshLicenseBadge();
+      renderSummary();
+    }, 200);
+    function debounce(fn, delay=200){ let t; return (...args)=>{ clearTimeout(t); t = setTimeout(()=>fn(...args), delay); }; }
+
+    function ensureWeek(dateISO){
+      if(!state.weeks[dateISO]){
+        state.weeks[dateISO] = {
+          date: dateISO, topic: "", offering: "", testimonies: [], visitors: [], attendance: {}, delegations: defaultDelegations()
+        };
+      }else if(!state.weeks[dateISO].delegations){
+        state.weeks[dateISO].delegations = defaultDelegations();
+      }
+      return state.weeks[dateISO];
+    }
+    function defaultDelegations(){
+      return { prayer: null, thanks: null, worship: null, offering: null, lesson: "leader" };
+    }
+
+    // ====== LICENCIA / TRIAL ======
+    function daysBetween(aISO, bISO){
+      const a = new Date(aISO+"T00:00:00Z"); const b = new Date(bISO+"T00:00:00Z");
+      return Math.floor((b - a) / (1000*60*60*24));
+    }
+    function licenseStatus(){
+      const lic = state.licensing || {};
+      const isPro = !!lic.isPro;
+      const nowISO = todayISO();
+      const first = lic.firstUseISO || nowISO;
+      const diff = Math.max(0, daysBetween(first, nowISO));
+      const trialDays = lic.trialDays ?? 5;
+      const daysLeft = Math.max(0, trialDays - diff);
+      const inTrial = !isPro && daysLeft > 0;
+
+      const limit = lic.shareLimit ?? lic.exportLimit ?? 5;
+      const used  = lic.sharesUsed ?? lic.exportsUsed ?? 0;
+      const remain = Math.max(0, limit - used);
+
+      // Regla: SOLO se puede compartir/copiar/agregar/editar asistencia si está dentro de los días de prueba Y quedan envíos
+      const canShare = isPro || (inTrial && remain > 0);
+      const watermark = !isPro;
+      return { isPro, inTrial, daysLeft, used, limit, remain, canShare, watermark };
+    }
+
+    function activeMemberCount(){
+      return state.members.filter(m => m.active !== false).length;
+    }
+    function canAddMoreMembers(){
+      const st = licenseStatus();
+      if(st.isPro) return true;
+      // En demo: además de tener permiso general (canShare), respetar límite 3
+      return st.canShare && activeMemberCount() < DEMO_MEMBER_LIMIT;
+    }
+
+    function refreshLicenseBadge(){
+      const badge = $("#badgeLicense");
+      const btn = $("#btnActivate");
+      const st = licenseStatus();
+
+      if(st.isPro){
+        badge.textContent = "✅ Pro activado";
+        badge.setAttribute("aria-label","Licencia activa");
+        badge.style.background = "linear-gradient(180deg, rgba(34,197,94,.15), rgba(34,197,94,.05))";
+        badge.style.borderColor = "#2e7d32";
+        if(btn) btn.style.display = "none";
+      }else{
+        badge.textContent = st.inTrial
+          ? `🔒 Demo · ${st.daysLeft} día(s) restantes · compartidos ${st.used}/${st.limit}`
+          : `🔒 Demo finalizada · compartidos ${st.used}/${st.limit}`;
+        badge.removeAttribute("aria-label");
+        badge.style.background = "";
+        badge.style.borderColor = "#274156";
+        if(btn) btn.style.display = "";
+      }
+
+      const note = $("#watermarkNote");
+      if(note){
+        note.textContent = st.isPro ? "" : "(en demo, las imágenes se comparten con marca de agua)";
+      }
+      const tc = $("#trialCounter");
+      if(tc){
+        tc.textContent = st.isPro ? "" : (st.canShare
+          ? `Demo: envíos disponibles ${st.remain}/${st.limit}`
+          : `Demo sin envíos disponibles`);
+      }
+
+      // Bloqueos: delegaciones, compartir, copiar
+      const btnDel = $("#btnShareDelegationsWA");
+      if(btnDel){
+        btnDel.disabled = !st.canShare;
+        btnDel.title = st.canShare ? "Enviar delegaciones por WhatsApp" : "Activa Pro para enviar delegaciones";
+      }
+      const btnShareWA2 = $("#btnShareWhatsApp");
+      const btnGeneric2 = $("#btnShareGeneric");
+      const btnCopyMsg = $("#btnCopyMsg");
+      const chk = $("#chkIncludePhoto");
+      if(btnShareWA2 && btnGeneric2){
+        btnShareWA2.disabled = !st.canShare;
+        btnGeneric2.disabled = !st.canShare;
+        btnShareWA2.title = st.canShare ? "Compartir por WhatsApp" : "Activa Pro para compartir";
+        btnGeneric2.title = st.canShare ? "Compartir con otras apps" : "Activa Pro para compartir";
+      }
+      if(btnCopyMsg){
+        btnCopyMsg.disabled = !st.canShare;
+        btnCopyMsg.title = st.canShare ? "Copiar texto" : "Bloqueado: activa Pro para copiar";
+      }
+      if(chk){
+        if(!st.canShare){ chk.checked = false; chk.disabled = true; }
+      }
+      // Footer: bloquear apertura del modal al terminar demo
+      const footerShare = $("#btnShare");
+      const footerWA = $("#btnShareWA");
+      if(footerShare) footerShare.disabled = !st.canShare;
+      if(footerWA) footerWA.disabled = !st.canShare;
+
+      // Agregar miembros: bloquear por fin de demo o por límite de 3 en demo
+      updateMemberAddControls();
+    }
+
+    function updateMemberAddControls(){
+      const st = licenseStatus();
+      const btnAddMember = $("#btnAddMember");
+      const newMemberInput = $("#newMemberInput");
+      if(!btnAddMember || !newMemberInput) return;
+
+      const actives = activeMemberCount();
+
+      if(!st.canShare){
+        btnAddMember.disabled = true;
+        newMemberInput.disabled = true;
+        btnAddMember.title = "Bloqueado en demo finalizada";
+        newMemberInput.title = "Bloqueado en demo finalizada";
+        return;
+      }
+
+      if(st.isPro){
+        btnAddMember.disabled = false;
+        newMemberInput.disabled = false;
+        btnAddMember.title = "Agregar miembro";
+        newMemberInput.title = "Nombre de la persona nueva";
+        return;
+      }
+
+      // Demo activa: respetar límite 3
+      const underLimit = actives < DEMO_MEMBER_LIMIT;
+      btnAddMember.disabled = !underLimit;
+      newMemberInput.disabled = !underLimit;
+      if(underLimit){
+        btnAddMember.title = "Agregar miembro (demo: máximo 3 miembros)";
+        newMemberInput.title = "Demo: puedes agregar hasta 3 miembros";
+      }else{
+        btnAddMember.title = "Límite demo alcanzado (3 miembros). Activa Pro para agregar más.";
+        newMemberInput.title = "Límite demo alcanzado (3 miembros). Activa Pro para agregar más.";
+      }
+    }
+
+    function canUseShareSlot(){ return licenseStatus().canShare; }
+    function consumeShareSlot(){
+      const st = licenseStatus();
+      if(st.isPro) return true;
+      if(!st.canShare) return false;
+      state.licensing.sharesUsed = (state.licensing.sharesUsed || 0) + 1;
+      saveState();
+      return true;
+    }
+    function rollbackShareSlot(){
+      const lic = state.licensing;
+      if(lic.isPro) return;
+      lic.sharesUsed = Math.max(0, (lic.sharesUsed || 0) - 1);
+      saveState();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      $("#meetingDate").value = state.currentDate;
+      updateGroupTags();
+      renderAllForDate(state.currentDate);
+      bindEvents();
+      setupPWA();
+      refreshLicenseBadge();
+    });
+
+    function updateGroupTags(){
+      $("#groupNameView").textContent = state.group.name || "—";
+      $("#leaderNameView").textContent = state.group.leader || "—";
+    }
+    function renderAllForDate(dateISO){
+      ensureWeek(dateISO);
+      renderMembers();
+      const week = ensureWeek(dateISO);
+      $("#weeklyTopic").value = week.topic || "";
+      $("#offering").value = week.offering || "";
+      renderChipsList(week.testimonies, $("#testimoniesList"), "testimony");
+      renderChipsList(week.visitors, $("#visitorsList"), "visitor");
+      renderPhotos();
+      renderDelegations();
+      renderSummary();
+      refreshLicenseBadge();
+    }
+
+    function renderMembers(){
+      const list = $("#membersList"); list.innerHTML = "";
+      const week = ensureWeek(state.currentDate);
+      const members = [...state.members].filter(m => m.active !== false).sort((a,b) => a.name.localeCompare(b.name, 'es'));
+      const st = licenseStatus();
+      if(members.length === 0){
+        const empty = document.createElement("div"); empty.className = "muted"; empty.textContent = "Agrega personas para registrar asistencia."; list.appendChild(empty);
+        updateMemberAddControls();
+        return;
+      }
+      members.forEach(m => {
+        const present = !!week.attendance[m.id];
+        const item = document.createElement("div"); item.className = "member-item"; item.setAttribute("role","listitem");
+        const name = document.createElement("div"); name.className = "member-name"; name.textContent = m.name;
+        const right = document.createElement("div"); right.className = "presence-toggle";
+        const status = document.createElement("span"); status.className = "status-label"; status.textContent = present ? "Presente" : "Ausente"; status.style.color = present ? "#d6fff0" : "#ffd3d3";
+        const toggle = document.createElement("button"); toggle.className = "toggle"; toggle.type = "button"; toggle.setAttribute("role","switch");
+        toggle.setAttribute("aria-checked", present ? "true" : "false"); toggle.dataset.pressed = present ? "true" : "false";
+        toggle.title = st.canShare ? (present ? "Marcar como ausente" : "Marcar como presente") : "Bloqueado: activa Pro para editar asistencia";
+        toggle.setAttribute("aria-label", `Asistencia de ${m.name}`);
+        const knob = document.createElement("div"); knob.className = "knob"; toggle.appendChild(knob);
+        if(st.canShare){
+          toggle.addEventListener("click", () => { week.attendance[m.id] = !week.attendance[m.id]; saveState(); renderMembers(); });
+        }else{
+          toggle.disabled = true;
+        }
+        const btnDel = document.createElement("button"); btnDel.className = "btn danger"; btnDel.type = "button"; btnDel.textContent = "Eliminar";
+        btnDel.setAttribute("aria-label", `Eliminar ${m.name} de la lista`);
+        if(st.canShare){
+          btnDel.addEventListener("click", () => { if(confirm(`¿Eliminar a "${m.name}" de la lista?`)){ m.active = false; saveState(); renderMembers(); renderDelegations(); } });
+        }else{
+          btnDel.disabled = true; btnDel.title = "Bloqueado en demo finalizada";
+        }
+        right.appendChild(status); right.appendChild(toggle); right.appendChild(btnDel);
+        item.appendChild(name); item.appendChild(right); list.appendChild(item);
+      });
+      updateMemberAddControls();
+      renderSummary();
+    }
+
+    function addMember(name){
+      const st = licenseStatus();
+      if(!st.canShare){ alert("Bloqueado: activa Pro para agregar miembros."); return; }
+      const trimmed = (name||"").trim(); if(!trimmed) return;
+
+      if(!st.isPro && activeMemberCount() >= DEMO_MEMBER_LIMIT){
+        const go = confirm("Límite de demo alcanzado: solo 3 miembros.\nActiva la versión completa para agregar más.\n\n¿Deseas abrir la activación ahora?");
+        if(go){ $("#modalActivate")?.showModal(); }
+        return;
+      }
+
+      const id = "m_" + Math.random().toString(36).slice(2,10);
+      state.members.push({ id, name: trimmed, active: true });
+      saveState();
+      const inp = $("#newMemberInput"); if(inp){ inp.value = ""; inp.focus(); }
+      renderMembers(); renderDelegations();
+    }
+
+    function renderChipsList(arr, root, type){
+      root.innerHTML = "";
+      if(!Array.isArray(arr) || arr.length === 0){
+        const empty = document.createElement("div"); empty.className = "muted";
+        empty.textContent = type === "testimony" ? "Sin testimonios registrados." : "Sin nuevas visitas registradas.";
+        root.appendChild(empty); return;
+      }
+      arr.forEach((txt, idx) => {
+        const chip = document.createElement("div"); chip.className = "chip"; chip.setAttribute("role","listitem");
+        chip.innerHTML = `<span>${escapeHtml(txt)}</span>`;
+        const del = document.createElement("button"); del.className = "btn ghost danger-text"; del.type = "button"; del.setAttribute("aria-label", "Eliminar elemento"); del.textContent = "✖";
+        del.addEventListener("click", () => { arr.splice(idx,1); saveState(); renderChipsList(arr, root, type); });
+        chip.appendChild(del); root.appendChild(chip);
+      });
+      renderSummary();
+    }
+
+    function renderPhotos(){
+      const grid = $("#photosGrid"); grid.innerHTML = "";
+      if(state.photos.length === 0){ const empty = document.createElement("div"); empty.className = "muted"; empty.textContent = "Aún no hay fotos."; grid.appendChild(empty); return; }
+      state.photos.slice().reverse().forEach((ph) => {
+        const card = document.createElement("div"); card.className = "photo";
+        const img = document.createElement("img"); img.src = ph.dataURL; img.alt = ph.caption ? `Foto: ${ph.caption}` : "Foto del grupo";
+        const meta = document.createElement("div"); meta.className = "meta";
+        const left = document.createElement("span"); left.textContent = ph.caption || "Sin descripción";
+        const right = document.createElement("div"); right.className = "inline";
+        const btnSharePic = document.createElement("button"); btnSharePic.className = "btn ghost"; btnSharePic.type = "button"; btnSharePic.textContent = "📤"; btnSharePic.title = "Compartir foto";
+        btnSharePic.addEventListener("click", async () => { await sharePhoto(ph); });
+        const btnDel = document.createElement("button"); btnDel.className = "btn ghost"; btnDel.type = "button"; btnDel.textContent = "🗑️"; btnDel.title = "Eliminar foto";
+        btnDel.addEventListener("click", () => { if(confirm("¿Eliminar esta foto?")){ const idx = state.photos.findIndex(p => p.id === ph.id); if(idx >= 0){ state.photos.splice(idx,1); saveState(); renderPhotos(); } } });
+        right.appendChild(btnSharePic); right.appendChild(btnDel);
+        meta.appendChild(left); meta.appendChild(right);
+        card.appendChild(img); card.appendChild(meta); grid.appendChild(card);
+      });
+    }
+    async function sharePhoto(ph){
+      try{
+        const res = await fetch(ph.dataURL); const blob = await res.blob();
+        const file = new File([blob], `foto-${ph.id}.png`, { type: blob.type || "image/png" });
+        if(navigator.share && navigator.canShare && navigator.canShare({ files:[file] })){
+          await navigator.share({ files:[file], title: state.group.name + " - Foto", text: ph.caption || "Foto del grupo" });
+        }else{
+          const url = URL.createObjectURL(blob); window.open(url, "_blank", "noopener"); setTimeout(()=>URL.revokeObjectURL(url), 10000);
+          alert("Se abrió la imagen en otra pestaña. Desde ahí puedes descargarla o compartirla.");
+        }
+      }catch(e){ console.error(e); alert("No se pudo compartir la foto."); }
+    }
+
+    function renderSummary(){
+      const dateISO = state.currentDate; const week = ensureWeek(dateISO);
+      const activeMembers = state.members.filter(m => m.active !== false);
+      const total = activeMembers.length;
+      const presents = activeMembers.filter(m => !!week.attendance[m.id]).length;
+      const absents = Math.max(0, total - presents);
+      const offering = Number(week.offering || 0);
+      const visitors = week.visitors?.length || 0;
+      $("#kpiPresent").textContent = String(presents);
+      $("#kpiAbsent").textContent = String(absents);
+      $("#kpiOffering").textContent = fmtCurrency(offering);
+      $("#kpiVisitors").textContent = String(visitors);
+      const pct = total > 0 ? Math.round((presents/total)*100) : 0;
+      $("#pctLabel").textContent = pct + "%";
+      $("#pctBar").style.width = pct + "%";
+      $("#pctBar").parentElement.setAttribute("aria-valuenow", String(pct));
+      const summary = [
+        `Grupo: ${state.group.name} · Líder: ${state.group.leader}`,
+        `Fecha: ${dateISO}`,
+        `Tema: ${week.topic || "—"}`,
+        `Asistencia: ${presents}/${total} (${pct}%)`,
+        `Ofrenda: ${fmtCurrency(offering)}`,
+        `Testimonios: ${week.testimonies?.length || 0}`,
+        `Nuevas visitas: ${visitors}`
+      ].join("\n");
+      $("#summaryText").textContent = summary;
+    }
+
+    function buildShareTextFancy(){
+      const dateISO = state.currentDate;
+      const week = ensureWeek(dateISO);
+      const activeMembers = state.members.filter(m => m.active !== false);
+      const total = activeMembers.length;
+      const presents = activeMembers.filter(m => !!week.attendance[m.id]).length;
+      const pct = total > 0 ? Math.round((presents/total)*100) : 0;
+      const presentNames = activeMembers.filter(m => !!week.attendance[m.id]).map(m => m.name);
+      const absentNames = activeMembers.filter(m => !week.attendance[m.id]).map(m => m.name);
+      const visitors = week.visitors || []; const testimonies = week.testimonies || [];
+      const line = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+      const title = "🕊️ *REPORTE DE GRUPO DE AMISTAD*";
+      const head = [`👥 *Grupo:* ${state.group.name}`, `👤 *Líder:* ${state.group.leader}`, `📅 *Fecha:* ${dateISO}`, `🎯 *Tema:* ${week.topic ? week.topic : "—"}`].join("\n");
+      const attendance = [`✅ *Asistencia:* ${presents}/${total} (${pct}%)`,
+        presentNames.length ? `   • *Presentes (${presentNames.length}):* ${presentNames.join(", ")}` : `   • *Presentes:* —`,
+        absentNames.length ? `   • *Ausentes (${absentNames.length}):* ${absentNames.join(", ")}` : `   • *Ausentes:* —`
+      ].join("\n");
+      const money = `💒 *Ofrenda:* ${fmtCurrency(week.offering || 0)}`;
+      const guests = visitors.length ? `🆕 *Visitas (${visitors.length}):*\n${visitors.map(v => `   • ${v}`).join("\n")}` : `🆕 *Visitas:* —`;
+      const testis = testimonies.length ? `🙌 *Testimonios (${testimonies.length}):*\n${testimonies.map(t => `   • ${t}`).join("\n")}` : `🙌 *Testimonios:* —`;
+      const footer = "_Gracias por su servicio y fidelidad. Dios les bendiga._";
+      return [ title, line, head, line, attendance, money, line, guests, testis, line, footer ].join("\n");
+    }
+
+    // ====== Delegaciones ======
+    const ROLE_DEFS = [
+      { key: "prayer",   label: "Oración inicial",             emoji: "🙏" },
+      { key: "thanks",   label: "Agradecimientos y anuncios",  emoji: "📣" },
+      { key: "worship",  label: "Alabanza",                    emoji: "🎶" },
+      { key: "offering", label: "Levantar la ofrenda",         emoji: "💝" },
+      { key: "lesson",   label: "La lección",                  emoji: "📖", defaultLeader: true },
+    ];
+    function nameFromSelection(val){
+      if(!val) return "—";
+      if(val === "leader") return `${state.group.leader} (Líder)`;
+      const m = state.members.find(x => x.id === val);
+      return m ? m.name : "—";
+    }
+    function renderDelegations(){
+      const container = $("#delegationsList");
+      container.innerHTML = "";
+      const week = ensureWeek(state.currentDate);
+      const del = week.delegations || defaultDelegations();
+      week.delegations = del;
+
+      const activeMembers = state.members.filter(m => m.active !== false).sort((a,b)=>a.name.localeCompare(b.name,'es'));
+
+      ROLE_DEFS.forEach(rd => {
+        const row = document.createElement("div"); row.className = "role-row";
+        const label = document.createElement("div"); label.className = "label";
+        const emo = document.createElement("span"); emo.className = "emoji"; emo.textContent = rd.emoji;
+        const txt = document.createElement("span"); txt.textContent = rd.label;
+        label.appendChild(emo); label.appendChild(txt);
+
+        const select = document.createElement("select"); select.className = "select"; select.setAttribute("aria-label", `Delegar: ${rd.label}`);
+
+        const opt0 = new Option("— Seleccionar —", "", !del[rd.key], !del[rd.key]); select.add(opt0);
+        const leaderText = `Líder actual (${state.group.leader || "—"})`;
+        const optLeader = new Option(leaderText, "leader", rd.defaultLeader && !del[rd.key], del[rd.key] === "leader" || (rd.defaultLeader && !del[rd.key]));
+        select.add(optLeader);
+        activeMembers.forEach(m => { select.add(new Option(m.name, m.id, false, del[rd.key] === m.id)); });
+
+        if(del[rd.key] && del[rd.key] !== "leader" && !activeMembers.some(m => m.id === del[rd.key])){
+          const optLegacy = new Option("(Miembro inactivo)", del[rd.key], false, true); optLegacy.disabled = true; select.add(optLegacy);
+        }
+        select.addEventListener("change", () => { week.delegations[rd.key] = (select.value || null); saveState(); });
+
+        row.appendChild(label); row.appendChild(select); container.appendChild(row);
+      });
+
+      $("#delegationsHint").innerHTML = `Asigna quién dirigirá cada parte. Por defecto, <strong>La lección</strong> la da el líder actual. Próxima reunión objetivo: <strong>${addDaysISO(state.currentDate, 7)}</strong>`;
+    }
+    function buildDelegationsText(){
+      const week = ensureWeek(state.currentDate);
+      const nextDate = addDaysISO(state.currentDate, 7);
+      const line = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+      const title = "🧭 *DELEGACIONES · PRÓXIMA REUNIÓN*";
+      const head = [
+        `👥 *Grupo:* ${state.group.name}`,
+        `👤 *Líder:* ${state.group.leader}`,
+        `📅 *Fecha actual:* ${state.currentDate}`,
+        `➡️ *Próxima reunión:* ${nextDate}`
+      ].join("\n");
+      const body = ROLE_DEFS.map(r => `${r.emoji} *${r.label}:* ${nameFromSelection((week.delegations||{})[r.key])}`).join("\n");
+      const footer = "_Gracias por su disposición y servicio. ¡Nos vemos en la próxima!_";
+      return [ title, line, head, line, body, line, footer ].join("\n");
+    }
+    function suggestDelegations(){
+      const week = ensureWeek(state.currentDate);
+      const del = week.delegations || defaultDelegations();
+      const active = state.members.filter(m => m.active !== false);
+      if(active.length === 0){ alert("No hay miembros activos para sugerir."); return; }
+      const pool = [...active];
+      for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+      del.lesson = state.group.leader ? "leader" : (pool[0]?.id || null);
+      const rolesToFill = ["prayer","thanks","worship","offering"];
+      let idx = 0; const used = new Set([del.lesson]);
+      rolesToFill.forEach(k => {
+        while(idx < pool.length && used.has(pool[idx].id)) idx++;
+        del[k] = pool[idx]?.id || pool[0]?.id || null;
+        used.add(del[k]); idx++;
+      });
+      saveState(); renderDelegations(); showToast("Delegaciones sugeridas");
+    }
+
+    // ====== Compartir (Bloqueo + Contador robusto) ======
+    let selectedPhotoId = null;
+    let sharingLock = false; // evita doble clic
+    function openShareModal(){
+      $("#txtPreview").value = buildShareTextFancy();
+      const picker = $("#photoPicker"); picker.innerHTML = "";
+      const photos = state.photos.slice().reverse(); const hasPhotos = photos.length > 0;
+      const chk = $("#chkIncludePhoto");
+      const st = licenseStatus();
+
+      if(hasPhotos){
+        const todayPhoto = photos.find(p => p.date === state.currentDate);
+        selectedPhotoId = (todayPhoto || photos[0]).id;
+        photos.slice(0, 9).forEach(ph => {
+          const cell = document.createElement("div"); cell.className = "thumb";
+          const img = document.createElement("img"); img.src = ph.dataURL; img.alt = ph.caption ? `Foto: ${ph.caption}` : "Foto del grupo";
+          const row = document.createElement("div"); row.className = "select-row";
+          const cap = document.createElement("span"); cap.textContent = ph.caption || "Sin descripción"; cap.style.whiteSpace = "nowrap"; cap.style.overflow = "hidden"; cap.style.textOverflow = "ellipsis";
+          const rb = document.createElement("input"); rb.type = "radio"; rb.name = "sharePhoto"; rb.value = ph.id; rb.checked = ph.id === selectedPhotoId; rb.setAttribute("aria-label", "Seleccionar esta foto");
+          rb.addEventListener("change", () => selectedPhotoId = ph.id);
+          row.appendChild(cap); row.appendChild(rb); cell.appendChild(img); cell.appendChild(row); picker.appendChild(cell);
+        });
+      }else{
+        const empty = document.createElement("div"); empty.className = "muted"; empty.textContent = "No hay fotos para adjuntar."; picker.appendChild(empty); selectedPhotoId = null;
+      }
+
+      const btnShareWA = $("#btnShareWhatsApp");
+      const btnGeneric = $("#btnShareGeneric");
+      const btnCopyMsg = $("#btnCopyMsg");
+      btnShareWA.disabled = !st.canShare;
+      btnGeneric.disabled = !st.canShare;
+      btnCopyMsg.disabled = !st.canShare;
+      btnShareWA.title = st.canShare ? "Compartir por WhatsApp" : "Activa Pro para compartir";
+      btnGeneric.title = st.canShare ? "Compartir con otras apps" : "Activa Pro para compartir";
+      btnCopyMsg.title = st.canShare ? "Copiar texto" : "Bloqueado: activa Pro para copiar";
+
+      if(!hasPhotos || !st.canShare){
+        chk.checked = false; chk.disabled = true; chk.title = !st.canShare ? "No se puede compartir en demo" : "No hay fotos disponibles";
+      }else{
+        chk.checked = true; chk.disabled = false; chk.title = "Listo para incluir foto";
+      }
+
+      const tc = $("#trialCounter");
+      if(tc){
+        tc.textContent = st.isPro ? "" : (st.canShare
+          ? `Demo: envíos disponibles ${st.remain}/${st.limit}`
+          : `Demo sin envíos disponibles`);
+      }
+
+      $("#modalShare").showModal();
+      refreshLicenseBadge();
+    }
+
+    async function shareViaWhatsApp(){
+      if(sharingLock) return;
+      const st0 = licenseStatus();
+      if(!st0.canShare){
+        alert("Demo sin envíos disponibles. Activa Pro para compartir.");
+        return;
+      }
+      sharingLock = true;
+      const text = buildShareTextFancy();
+      const includePhoto = $("#chkIncludePhoto").checked;
+
+      // Consumir SIEMPRE (cuenta cualquier mensaje con reporte)
+      if(!consumeShareSlot()){
+        sharingLock = false;
+        alert("No quedan envíos disponibles en esta demo.");
+        return;
+      }
+
+      try{
+        if(includePhoto && selectedPhotoId){
+          const ph = state.photos.find(p => p.id === selectedPhotoId);
+          const poster = await composeReportPoster(ph.dataURL, text, licenseStatus().watermark);
+          if(navigator.share && navigator.canShare && navigator.canShare({ files:[poster] })){
+            await navigator.share({ title: `Reporte ${state.group.name} (${state.currentDate})`, text, files: [poster] });
+            $("#modalShare").close(); showToast("Envío iniciado");
+            refreshLicenseBadge();
+            sharingLock = false;
+            return;
+          }else{
+            const url = URL.createObjectURL(poster); window.open(url, "_blank", "noopener"); setTimeout(()=>URL.revokeObjectURL(url), 12000);
+            const wa = "https://wa.me/?text=" + encodeURIComponent(text);
+            const win = window.open(wa, "_blank", "noopener");
+            if(!win){ throw new Error("Popup bloqueado para WhatsApp"); }
+            $("#modalShare").close();
+            alert("Se generó la imagen-resumen. Descárgala y envíala por WhatsApp. El texto también se abrió listo para enviar.");
+            refreshLicenseBadge();
+            sharingLock = false;
+            return;
+          }
+        }
+        // Solo texto
+        const waUrl = "https://wa.me/?text=" + encodeURIComponent(text);
+        const win = window.open(waUrl, "_blank", "noopener");
+        if(!win){ throw new Error("Popup bloqueado"); }
+        $("#modalShare").close(); showToast("Envío iniciado");
+        refreshLicenseBadge();
+      }catch(e){
+        console.warn("Error al compartir por WhatsApp:", e);
+        rollbackShareSlot(); // no cuenta si falló
+        alert("No se pudo iniciar el envío. Revisa permisos de ventanas emergentes e inténtalo de nuevo.");
+      }finally{
+        sharingLock = false;
+      }
+    }
+
+    async function shareViaGeneric(){
+      if(sharingLock) return;
+      const st0 = licenseStatus();
+      if(!st0.canShare){
+        alert("Demo sin envíos disponibles. Activa Pro para compartir.");
+        return;
+      }
+      sharingLock = true;
+      const text = buildShareTextFancy();
+      const includePhoto = $("#chkIncludePhoto").checked;
+
+      // Consumir SIEMPRE (cuenta cualquier mensaje con reporte)
+      if(!consumeShareSlot()){
+        sharingLock = false;
+        alert("No quedan envíos disponibles en esta demo.");
+        return;
+      }
+
+      try{
+        if(includePhoto && selectedPhotoId){
+          const ph = state.photos.find(p => p.id === selectedPhotoId);
+          const poster = await composeReportPoster(ph.dataURL, text, licenseStatus().watermark);
+          if(navigator.share && navigator.canShare && navigator.canShare({ files:[poster], text })){
+            await navigator.share({ title: `Reporte ${state.group.name} (${state.currentDate})`, text, files:[poster] });
+            $("#modalShare").close(); showToast("Envío iniciado"); refreshLicenseBadge();
+          }else{
+            const url = URL.createObjectURL(poster);
+            const a = document.createElement("a"); a.href = url; a.download = `reporte-${state.currentDate}.png`; document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(()=>URL.revokeObjectURL(url), 12000);
+            $("#modalShare").close(); showToast("Imagen descargada"); refreshLicenseBadge();
+          }
+        }else{
+          if(navigator.share){
+            await navigator.share({ title: `Reporte ${state.group.name} (${state.currentDate})`, text });
+            $("#modalShare").close(); showToast("Envío iniciado"); refreshLicenseBadge();
+          }else{
+            await navigator.clipboard.writeText(text);
+            $("#modalShare").close();
+            showToast("Texto copiado (recuerda enviarlo)"); refreshLicenseBadge();
+          }
+        }
+      }catch(e){
+        console.warn("Error al compartir:", e);
+        rollbackShareSlot(); // no cuenta si falló
+        alert("No se pudo compartir en este dispositivo.");
+      }finally{
+        sharingLock = false;
+      }
+    }
+
+    // Delegaciones: también cuenta
+    let delegLock = false;
+    function shareDelegationsWA(){
+      if(delegLock) return;
+      const st = licenseStatus();
+      if(!st.canShare){
+        alert("Demo sin envíos disponibles. Activa Pro para enviar delegaciones.");
+        return;
+      }
+      delegLock = true;
+
+      if(!consumeShareSlot()){
+        delegLock = false;
+        alert("No quedan envíos disponibles en esta demo.");
+        return;
+      }
+
+      try{
+        const txt = buildDelegationsText();
+        const waUrl = "https://wa.me/?text=" + encodeURIComponent(txt);
+        const win = window.open(waUrl, "_blank", "noopener");
+        if(!win){ throw new Error("Popup bloqueado"); }
+        showToast("Delegaciones: envío iniciado");
+        refreshLicenseBadge();
+      }catch(e){
+        console.warn("Error delegaciones:", e);
+        rollbackShareSlot();
+        alert("No se pudo abrir WhatsApp. Verifica el bloqueador de ventanas emergentes.");
+      }finally{
+        delegLock = false;
+      }
+    }
+
+    // ====== Composición de poster (marca de agua opcional) ======
+    async function composeReportPoster(photoDataURL, text, watermark=false){
+      const W = 1080; const M = 48; const R = 36; const pad = 24; const gap = 28;
+      const img = await loadImage(photoDataURL);
+      const m = document.createElement("canvas"); const mctx = m.getContext("2d");
+      const fontTitle = '700 54px "Segoe UI", Roboto, Arial, sans-serif';
+      const fontMeta  = '600 34px "Segoe UI", Roboto, Arial, sans-serif';
+      const fontBody  = '400 36px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji","Segoe UI", Roboto, Arial, sans-serif';
+      mctx.font = fontBody;
+      const cardW = W - M*2; const photoW = cardW - pad*2;
+      const ratio = img.width ? (img.height / img.width) : (3/4);
+      const photoH = Math.min(Math.round(photoW * ratio), 780);
+      const week = ensureWeek(state.currentDate);
+      const headerLines = [
+        `Grupo: ${state.group.name} • Líder: ${state.group.leader}`,
+        `Fecha: ${state.currentDate} • Tema: ${week.topic || "—"}`
+      ];
+      const headerWrapped = headerLines.flatMap(line => wrapText(mctx, line, cardW - pad*2));
+      const bodyWrapped = wrapText(mctx, text, cardW - pad*2);
+      const titleH = 64; const headerH = headerWrapped.length * 44 + 8; const bodyH = bodyWrapped.length * 46 + 8;
+      const H = M + titleH + gap + photoH + gap + headerH + gap/2 + bodyH + M;
+      const c = document.createElement("canvas"); c.width = W; c.height = H; const ctx = c.getContext("2d");
+      const gBg = ctx.createLinearGradient(0,0,W,H); gBg.addColorStop(0, "#0a222b"); gBg.addColorStop(1, "#0a1116"); ctx.fillStyle = gBg; ctx.fillRect(0,0,W,H);
+      const cardX = M, cardY = M, cardH = H - M*2;
+      roundedRect(ctx, cardX, cardY, cardW, cardH, R);
+      const gCard = ctx.createLinearGradient(cardX, cardY, cardX, cardY + cardH); gCard.addColorStop(0, "#0f1f29"); gCard.addColorStop(1, "#0b141a"); ctx.fillStyle = gCard; ctx.fill();
+      ctx.save(); ctx.font = fontTitle; ctx.fillStyle = "#eaf3f9"; ctx.textBaseline = "top"; ctx.fillText("Reporte de Grupo de Amistad", cardX + pad, cardY + 10); ctx.restore();
+      const px = cardX + pad; const py = cardY + 10 + titleH + 12;
+      drawRoundedImage(ctx, img, px, py, photoW, photoH, 28);
+      let y = py + photoH + gap; ctx.font = fontMeta; ctx.fillStyle = "#cfe3f5"; headerWrapped.forEach(line => { ctx.fillText(line, cardX + pad, y); y += 44; });
+      y += 6; ctx.globalAlpha = .26; ctx.fillStyle = "#cfe3f5"; ctx.fillRect(cardX + pad, y, cardW - pad*2, 2); ctx.globalAlpha = 1; y += gap/2;
+      ctx.font = fontBody; ctx.fillStyle = "#d7e8f7"; bodyWrapped.forEach(line => { ctx.fillText(line, cardX + pad, y); y += 46; });
+
+      if(watermark){
+        ctx.save();
+        ctx.translate(W/2, H/2);
+        ctx.rotate(-Math.PI/6);
+        ctx.fillStyle = "rgba(255,255,255,0.08)";
+        ctx.font = '900 120px "Segoe UI", Roboto, Arial, sans-serif';
+        ctx.textAlign = "center";
+        ctx.fillText("DEMO", 0, 0);
+        ctx.restore();
+
+        const bandH = 64;
+        ctx.fillStyle = "rgba(15,111,123,0.88)";
+        ctx.fillRect(cardX, H - M - bandH, cardW, bandH);
+        ctx.fillStyle = "#eaf3f9";
+        ctx.font = '700 30px "Segoe UI", Roboto, Arial, sans-serif';
+        ctx.fillText("Versión demo · Adquiere la versión completa para quitar esta marca", cardX + pad, H - M - bandH + 18);
+      }
+
+      y += 8; ctx.globalAlpha = .6; ctx.font = '600 28px "Segoe UI", Roboto, Arial, sans-serif'; ctx.fillStyle = "#9fb0c0"; ctx.fillText("GA Reportes", cardX + pad, y); ctx.globalAlpha = 1;
+      const blob = await canvasToBlob(c, "image/png", 0.96);
+      return new File([blob], `reporte-${state.currentDate}.png`, { type: "image/png" });
+    }
+    function wrapText(ctx, text, maxWidth){
+      const words = (text || "").split(/\s+/); const lines = []; let line = "";
+      for(const w of words){
+        const test = line ? (line + " " + w) : w;
+        if(ctx.measureText(test).width <= maxWidth){ line = test; }
+        else{
+          if(line) lines.push(line);
+          if(ctx.measureText(w).width > maxWidth){
+            let chunk = ""; for(const ch of w){ const t2 = chunk + ch; if(ctx.measureText(t2).width <= maxWidth) chunk = t2; else { lines.push(chunk); chunk = ch; } } line = chunk;
+          }else{ line = w; }
+        }
+      }
+      if(line) lines.push(line); return lines;
+    }
+    function roundedRect(ctx, x,y,w,h,r){ const rr = Math.min(r, w/2, h/2); ctx.beginPath(); ctx.moveTo(x+rr, y); ctx.arcTo(x+w, y, x+w, y+h, rr); ctx.arcTo(x+w, y+h, x, y+h, rr); ctx.arcTo(x, y+h, x, y, rr); ctx.arcTo(x, y, x+w, y, rr); ctx.closePath(); }
+    function coverFit(srcW, srcH, destW, destH){ const srcRatio = srcW / srcH, destRatio = destW / destH; let sW, sH; if(srcRatio > destRatio){ sH = srcH; sW = destRatio * sH; } else { sW = srcW; sH = sW / destRatio; } const sx = (srcW - sW) / 2, sy = (srcH - sH) / 2; return { sx, sy, sWidth: sW, sHeight: sH }; }
+    function drawRoundedImage(ctx, img, x,y,w,h,r=20){ ctx.save(); roundedRect(ctx, x,y,w,h,r); ctx.clip(); const { sx, sy, sWidth, sHeight } = coverFit(img.width, img.height, w, h); ctx.drawImage(img, sx, sy, sWidth, sHeight, x, y, w, h); ctx.restore(); }
+    function loadImage(src){ return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.decoding = "async"; i.src = src; }); }
+    function canvasToBlob(canvas, type="image/png", quality=0.96){ return new Promise((res)=>canvas.toBlob(b=>res(b), type, quality)); }
+
+    // ====== Respaldo/Restaurar/Instalar ======
+    let deferredPrompt = null;
+    async function backupData(){
+      try{
+        const data = JSON.stringify(state, null, 2);
+        const blob = new Blob([data], {type: "application/json"});
+        const defaultName = `respaldo-ga-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
+        if(window.showSaveFilePicker){
+          const handle = await window.showSaveFilePicker({
+            suggestedName: defaultName,
+            types: [{ description: "JSON", accept: { "application/json": [".json"] } }]
+          });
+          const writable = await handle.createWritable(); await writable.write(blob); await writable.close();
+          showToast("Respaldo guardado"); return;
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = defaultName; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url), 5000);
+        setTimeout(() => {
+          if(document.hasFocus()){
+            const dataUrl = "data:application/json;charset=utf-8," + encodeURIComponent(data);
+            window.open(dataUrl, "_blank", "noopener");
+            alert("Si no se descargó el archivo, en la pestaña que se abrió usa Compartir > Guardar en Archivos.");
+          }
+        }, 800);
+      }catch(e){ console.warn(e); alert("No se pudo crear el respaldo."); }
+    }
+    async function restoreData(){
+      try{
+        if(window.showOpenFilePicker){
+          const [fileHandle] = await window.showOpenFilePicker({
+            multiple: false,
+            types: [{ description: "JSON", accept: { "application/json": [".json"] } }]
+          });
+          const file = await fileHandle.getFile();
+          await importBackupFile(file);
+          return;
+        }
+        const inp = document.createElement("input"); inp.type = "file"; inp.accept = "application/json";
+        inp.addEventListener("change", async (e) => {
+          const file = e.target.files?.[0]; if(!file) return; await importBackupFile(file);
+        });
+        inp.click();
+      }catch(e){ console.warn(e); alert("No se pudo abrir el archivo de respaldo."); }
+    }
+    async function importBackupFile(file){
+      try{
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if(!data || typeof data !== "object" || !("weeks" in data) || !("members" in data) || !("photos" in data)){
+          throw new Error("Archivo inválido");
+        }
+        // Migración de licencia si faltan claves nuevas
+        if(!data.licensing){
+          data.licensing = defaultState().licensing;
+        }else{
+          if(typeof data.licensing.sharesUsed !== "number"){
+            data.licensing.sharesUsed = Number(data.licensing.exportsUsed || 0);
+          }
+          if(typeof data.licensing.shareLimit !== "number"){
+            data.licensing.shareLimit = Number(data.licensing.exportLimit || 5);
+          }
+        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        Object.keys(state).forEach(k => delete state[k]);
+        Object.assign(state, data);
+        updateGroupTags();
+        $("#meetingDate").value = state.currentDate || todayISO();
+        renderAllForDate(state.currentDate);
+        refreshLicenseBadge();
+        showToast("Datos restaurados");
+      }catch(err){ console.error(err); alert("No se pudo restaurar el respaldo. Verifica el archivo."); }
+    }
+
+    function openInstallHelp(){
+      const body = $("#installHelpBody");
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const isAndroid = /android/i.test(navigator.userAgent);
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+      const stepsIOS = `<p>En iPhone/iPad:</p><ol><li>Pulsa el botón Compartir (cuadro con flecha hacia arriba).</li><li>Elige “Añadir a pantalla de inicio”.</li><li>Confirma en la esquina superior derecha.</li></ol>`;
+      const stepsAndroid = `<p>En Android (Chrome):</p><ol><li>Toca el menú ⋮ en la esquina superior derecha.</li><li>Elige “Añadir a pantalla principal”.</li><li>Confirma para instalar la app.</li></ol>`;
+      const stepsDesktop = `<p>En escritorio (Chrome/Edge):</p><ol><li>Busca el ícono de “Instalar” en la barra de direcciones.</li><li>Haz click y confirma la instalación.</li></ol>`;
+      let html = `<p class="muted">No se pudo abrir el diálogo de instalación automático. Sigue estos pasos:</p>`;
+      if(isStandalone){ html = `<p>La app ya está instalada en tu dispositivo.</p>`; }
+      else if(isIOS){ html += stepsIOS; }
+      else if(isAndroid){ html += stepsAndroid; }
+      else { html += stepsDesktop; }
+      body.innerHTML = html;
+      $("#modalInstallHelp").showModal();
+    }
+
+    function bindEvents(){
+      // Editar grupo
+      $("#btnEditGroup").addEventListener("click", () => {
+        $("#inpGroupName").value = state.group.name || "";
+        $("#inpLeaderName").value = state.group.leader || "";
+        $("#modalGrupo").showModal();
+      });
+      $$('[data-close]').forEach(b => b.addEventListener("click", (e) => e.target.closest("dialog")?.close()));
+      $("#btnSaveGroup").addEventListener("click", () => {
+        state.group.name = $("#inpGroupName").value.trim() || "Grupo de Amistad";
+        state.group.leader = $("#inpLeaderName").value.trim() || "Nombre del Líder";
+        updateGroupTags(); saveState(); $("#modalGrupo").close();
+        renderDelegations();
+      });
+
+      // Fecha
+      $("#meetingDate").addEventListener("change", (e) => { const val = e.target.value || todayISO(); state.currentDate = val; saveState(); renderAllForDate(val); });
+      $("#btnToday").addEventListener("click", () => { const t = todayISO(); $("#meetingDate").value = t; state.currentDate = t; saveState(); renderAllForDate(t); });
+      $("#btnPrevDay").addEventListener("click", () => shiftDay(-1));
+      $("#btnNextDay").addEventListener("click", () => shiftDay(1));
+      function shiftDay(delta){ const d = new Date(state.currentDate); d.setDate(d.getDate()+delta); const iso = d.toISOString().slice(0,10); $("#meetingDate").value = iso; state.currentDate = iso; saveState(); renderAllForDate(iso); }
+
+      // Miembros
+      $("#btnAddMember").addEventListener("click", () => addMember($("#newMemberInput").value));
+      $("#newMemberInput").addEventListener("keydown", (e) => { if(e.key === "Enter"){ addMember(e.currentTarget.value); } });
+
+      // Tema y ofrenda
+      $("#weeklyTopic").addEventListener("input", (e) => { ensureWeek(state.currentDate).topic = e.target.value; saveState(); if($("#modalShare").open) $("#txtPreview").value = buildShareTextFancy(); });
+      $("#offering").addEventListener("input", (e) => { ensureWeek(state.currentDate).offering = e.target.value; saveState(); if($("#modalShare").open) $("#txtPreview").value = buildShareTextFancy(); });
+
+      // Testimonios
+      $("#btnAddTestimony").addEventListener("click", () => {
+        const v = $("#newTestimonyInput").value.trim(); if(!v) return;
+        ensureWeek(state.currentDate).testimonies.push(v); $("#newTestimonyInput").value = ""; saveState();
+        renderChipsList(ensureWeek(state.currentDate).testimonies, $("#testimoniesList"), "testimony");
+        if($("#modalShare").open) $("#txtPreview").value = buildShareTextFancy();
+      });
+      $("#newTestimonyInput").addEventListener("keydown", (e) => { if(e.key === "Enter"){ $("#btnAddTestimony").click(); } });
+
+      // Visitas
+      $("#btnAddVisitor").addEventListener("click", () => {
+        const v = $("#newVisitorInput").value.trim(); if(!v) return;
+        ensureWeek(state.currentDate).visitors.push(v); $("#newVisitorInput").value = ""; saveState();
+        renderChipsList(ensureWeek(state.currentDate).visitors, $("#visitorsList"), "visitor");
+        if($("#modalShare").open) $("#txtPreview").value = buildShareTextFancy();
+      });
+      $("#newVisitorInput").addEventListener("keydown", (e) => { if(e.key === "Enter"){ $("#btnAddVisitor").click(); } });
+
+      // Fotos: cámara
+      $("#photoInputCamera").addEventListener("change", async (e) => {
+        const file = e.target.files?.[0]; if(!file) return;
+        const caption = $("#photoCaption").value.trim();
+        const dataURL = await fileToDataURL(file);
+        state.photos.push({ id: "p_"+Date.now().toString(36), dataURL, caption, date: state.currentDate });
+        $("#photoCaption").value = ""; e.target.value = "";
+        saveState(); renderPhotos();
+      });
+      // Fotos: galería (múltiples)
+      $("#photoInputGallery").addEventListener("change", async (e) => {
+        const files = Array.from(e.target.files || []); if(files.length === 0) return;
+        const caption = $("#photoCaption").value.trim();
+        for(const file of files){
+          const dataURL = await fileToDataURL(file);
+          state.photos.push({ id: "p_"+Math.random().toString(36).slice(2,10), dataURL, caption, date: state.currentDate });
+        }
+        $("#photoCaption").value = ""; e.target.value = "";
+        saveState(); renderPhotos();
+      });
+
+      // Footer: abrir/compartir
+      $("#btnShare").addEventListener("click", () => openShareModal());
+      $("#btnShareWA").addEventListener("click", () => openShareModal());
+
+      // Acciones en modal de compartir
+      $("#btnShareWhatsApp").addEventListener("click", shareViaWhatsApp);
+      $("#btnShareGeneric").addEventListener("click", shareViaGeneric);
+      $("#btnCopyMsg").addEventListener("click", async () => {
+        if(!licenseStatus().canShare){ alert("Bloqueado: activa Pro para copiar el texto."); return; }
+        try{ await navigator.clipboard.writeText(buildShareTextFancy()); showToast("Texto copiado"); }
+        catch{ alert("No se pudo copiar automáticamente. Selecciona el texto y copia manualmente."); }
+      });
+
+      // Limpiar día
+      $("#btnClearDay").addEventListener("click", () => {
+        const date = state.currentDate;
+        if(confirm("¿Limpiar todos los datos de la fecha actual (tema, ofrenda, testimonios, visitas y asistencia)?")){
+          state.weeks[date] = { date, topic: "", offering: "", testimonies: [], visitors: [], attendance: {}, delegations: defaultDelegations() };
+          saveState(); renderAllForDate(date);
+          if($("#modalShare").open) $("#txtPreview").value = buildShareTextFancy();
+          showToast("Día limpiado");
+        }
+      });
+
+      // Delegaciones
+      $("#btnSuggestDelegations").addEventListener("click", suggestDelegations);
+      $("#btnShareDelegationsWA").addEventListener("click", shareDelegationsWA);
+
+      // Respaldo/Restaurar
+      $("#btnBackup").addEventListener("click", backupData);
+      $("#btnRestore").addEventListener("click", restoreData);
+
+      // Instalar
+      $("#btnInstall").addEventListener("click", async () => {
+        try{
+          if(deferredPrompt){
+            deferredPrompt.prompt();
+            const choice = await deferredPrompt.userChoice;
+            if(choice.outcome === "accepted"){ showToast("Instalación iniciada"); }
+            deferredPrompt = null; return;
+          }
+          if(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone){
+            showToast("Ya está instalada"); return;
+          }
+          openInstallHelp();
+        }catch(e){ openInstallHelp(); }
+      });
+
+      // Activación Pro
+      $("#btnActivate").addEventListener("click", () => {
+        $("#activationStatus").textContent = "";
+        $("#inpActivation").value = "";
+        $("#modalActivate").showModal();
+      });
+      $("#btnApplyActivation").addEventListener("click", () => {
+        const code = ($("#inpActivation").value || "").trim();
+        const ok = validateActivationCode(code);
+        const status = $("#activationStatus");
+        if(ok){
+          state.licensing.isPro = true;
+          state.licensing.activationCode = code;
+          saveState();
+          refreshLicenseBadge();
+          status.textContent = "Activación correcta. ¡Gracias!"; status.style.color = "#a7f3d0";
+          celebrateActivation();
+          setTimeout(()=>$("#modalActivate").close(), 800);
+        }else{
+          status.textContent = "Código inválido. Verifica el código enviado por WhatsApp."; status.style.color = "#ffb4b4";
+        }
+      });
+    }
+
+    function validateActivationCode(code){
+      if(!code) return false;
+      if(code === "GA-PRO") return true; // soporte
+      if(ACTIVATION_WHITELIST.has(code)) return true;
+      if(/^GA-PRO-[A-Za-z0-9]{6,}$/.test(code)) return true;
+      return false;
+    }
+
+    // Animación al activar Pro
+    function celebrateActivation(){
+      const emojis = ["🎉","✨","🙌","🎊","🟢","💫"];
+      const n = 18;
+      for(let i=0;i<n;i++){
+        const span = document.createElement("span");
+        span.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+        span.style.position = "fixed";
+        span.style.zIndex = 2000;
+        span.style.left = Math.random()*100 + "vw";
+        span.style.top = "-10vh";
+        span.style.fontSize = (16 + Math.random()*22) + "px";
+        span.style.transition = "transform 1.2s ease, opacity 1.2s ease";
+        document.body.appendChild(span);
+        requestAnimationFrame(()=>{
+          span.style.transform = `translateY(${110+Math.random()*10}vh)`;
+          span.style.opacity = "0";
+        });
+        setTimeout(()=> span.remove(), 1400 + Math.random()*300);
+      }
+    }
+
+    async function fileToDataURL(file){
+      return new Promise((res,rej) => { const reader = new FileReader(); reader.onload = () => res(reader.result); reader.onerror = rej; reader.readAsDataURL(file); });
+    }
+
+    async function setupPWA(){
+      try{
+        const icon192 = await makeIcon(192,192);
+        const icon512 = await makeIcon(512,512);
+        const manifest = {
+          name: "Reportes GA",
+          short_name: "GA Reportes",
+          description: "PWA para reportes de líderes de Grupos de Amistad.",
+          start_url: ".",
+          scope: ".",
+          display: "standalone",
+          background_color: "#0a1116",
+          theme_color: "#0f6f7b",
+          icons: [
+            { src: icon192, sizes: "192x192", type: "image/png", purpose: "any maskable" },
+            { src: icon512, sizes: "512x512", type: "image/png", purpose: "any maskable" }
+          ]
+        };
+        const mBlob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
+        const mUrl = URL.createObjectURL(mBlob);
+        const link = document.createElement("link"); link.rel = "manifest"; link.href = mUrl; document.head.appendChild(link);
+
+        const swCode = `
+          const CACHE = "ga-cache-v1";
+          self.addEventListener("install", (e) => {
+            e.waitUntil((async () => {
+              const cache = await caches.open(CACHE);
+              await cache.addAll(["./"]);
+            })());
+          });
+          self.addEventListener("activate", (e) => {
+            e.waitUntil((async () => {
+              const keys = await caches.keys();
+              await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
+              self.clients.claim();
+            })());
+          });
+          self.addEventListener("fetch", (e) => {
+            const req = e.request;
+            e.respondWith((async () => {
+              const cached = await caches.match(req);
+              if(cached) return cached;
+              try{
+                const res = await fetch(req);
+                if(req.method === "GET" && res && res.status === 200 && res.type === "basic"){
+                  const cache = await caches.open(CACHE);
+                  cache.put(req, res.clone());
+                }
+                return res;
+              }catch(err){
+                const cached2 = await caches.match("./");
+                return cached2 || new Response("Offline", { status: 200, headers: { "Content-Type":"text/plain" } });
+              }
+            })());
+          });
+        `;
+        const swBlob = new Blob([swCode], { type: "text/javascript" });
+        const swUrl = URL.createObjectURL(swBlob);
+        if('serviceWorker' in navigator){ await navigator.serviceWorker.register(swUrl); }
+
+        window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredPrompt = e; showToast("Listo para instalar"); });
+        window.addEventListener("appinstalled", () => { showToast("Aplicación instalada"); });
+
+        setTimeout(() => { URL.revokeObjectURL(mUrl); URL.revokeObjectURL(swUrl); }, 5000);
+      }catch(e){ console.warn("PWA setup falló:", e); }
+    }
+
+    async function makeIcon(w,h){
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      const ctx = c.getContext("2d");
+      const g = ctx.createLinearGradient(0,0,w,h);
+      g.addColorStop(0, "#0f6f7b"); g.addColorStop(.55, "#0b5660"); g.addColorStop(1, "#0f6f7b");
+      ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+      ctx.lineWidth = Math.max(12, Math.round(w*0.06));
+      ctx.strokeStyle = "rgba(255,255,255,.92)";
+      const m = w*0.18;
+      ctx.beginPath(); ctx.moveTo(w/2, m); ctx.lineTo(w/2, h-m); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(m, h/2); ctx.lineTo(w-m, h/2); ctx.stroke();
+      const rg = ctx.createRadialGradient(w*0.3, h*0.2, 0, w*0.3, h*0.2, w*0.6);
+      rg.addColorStop(0, "rgba(255,255,255,.25)"); rg.addColorStop(1, "transparent");
+      ctx.fillStyle = rg; ctx.fillRect(0,0,w,h);
+      return c.toDataURL("image/png");
+    }
+
+    window.addEventListener('unhandledrejection', (e) => console.warn('Unhandled rejection:', e.reason));
+  </script>
+</body>
+</html>
